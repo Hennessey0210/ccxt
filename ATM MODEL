@@ -1,0 +1,55 @@
+# Replace with your own API key and secret
+API_KEY = 'your_api_key'
+API_SECRET = 'your_api_secret'
+
+# Initialize the Binance client
+client = Client(API_KEY, API_SECRET)
+
+# Define the symbol and quantity to trade
+SYMBOL = 'BTCUSDT'
+QUANTITY = 0.001
+
+# Define New York timezone
+ny_tz = pytz.timezone('America/New_York')
+
+def get_daily_open_price(symbol):
+    """
+    Get the daily opening price of the symbol at 00:00 New York time.
+    """
+    now = datetime.now(ny_tz)
+    start_time = datetime(now.year, now.month, now.day, 0, 0, 0, tzinfo=ny_tz)
+    start_time = start_time.astimezone(pytz.UTC)
+    klines = client.get_historical_klines(symbol, Client.KLINE_INTERVAL_1MINUTE, start_time.strftime('%Y-%m-%d %H:%M:%S'), (start_time + timedelta(minutes=1)).strftime('%Y-%m-%d %H:%M:%S'))
+    return float(klines[0][1])  # Open price
+
+def main():
+    daily_open_price = get_daily_open_price(SYMBOL)
+    print(f"Daily opening price: {daily_open_price}")
+
+    # Wait until 08:30 New York time
+    while True:
+        now = datetime.now(ny_tz)
+        if now.hour == 8 and now.minute >= 30:
+            break
+        time.sleep(30)  # Check every 30 seconds
+
+    while True:
+        # Get the current price
+        ticker = client.get_symbol_ticker(symbol=SYMBOL)
+        current_price = float(ticker['price'])
+        print(f"Current price: {current_price}")
+
+        if current_price > daily_open_price:
+            print("Price is above daily opening price. Buying...")
+            order = client.order_market_buy(symbol=SYMBOL, quantity=QUANTITY)
+            print(f"Buy order: {order}")
+        elif current_price < daily_open_price:
+            print("Price is below daily opening price. Selling...")
+            order = client.order_market_sell(symbol=SYMBOL, quantity=QUANTITY)
+            print(f"Sell order: {order}")
+
+        # Wait for a minute before checking again
+        time.sleep(60)
+
+if name == "__main__":
+    main()
