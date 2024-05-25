@@ -1,0 +1,60 @@
+import ccxt
+import time
+import datetime
+
+# Configuration
+exchange_id = 'binance'
+symbol = 'XAU/USD'
+api_key = 'your_api_key'
+api_secret = 'your_api_secret'
+daily_opening_time = '00:00'
+check_time = '08:30'
+timezone = 'America/New_York'
+
+# Initialize exchange
+exchange = getattr(ccxt, exchange_id)({
+    'apiKey': api_key,                
+    'secret': api_secret,
+})
+
+# Convert time to UTC
+def to_utc(time_str, timezone):
+    local = datetime.datetime.strptime(time_str, '%H:%M')
+    local = local.replace(tzinfo=datetime.timezone(datetime.timedelta(hours=int(timezone))))
+    utc = local.astimezone(datetime.timezone.utc)
+    return utc.time().strftime('%H:%M')
+
+# Get daily opening price
+def get_daily_opening_price():
+    now = datetime.datetime.utcnow()
+    start_of_day = datetime.datetime(now.year, now.month, now.day)
+    start_of_day += datetime.timedelta(hours=int(daily_opening_time.split(':')[0]),
+                                       minutes=int(daily_opening_time.split(':')[1]))
+    since = int(start_of_day.timestamp() * 1000)
+    ohlcv = exchange.fetch_ohlcv(symbol, '1m', since, 1)
+    return ohlcv[0][1]  # Opening price
+
+# Main function
+def main():
+    daily_opening_price = get_daily_opening_price()
+    print(f"Daily Opening Price: {daily_opening_price}")
+    
+    while True:
+        now = datetime.datetime.now(datetime.timezone.utc).strftime('%H:%M')
+        if now >= to_utc(check_time, timezone):
+            ticker = exchange.fetch_ticker(symbol)
+            current_price = ticker['last']
+            print(f"Current Price: {current_price}")
+            
+            if current_price > daily_opening_price:
+                print("Buying...")
+                exchange.create_market_buy_order(symbol, 1)  # Amount to buy is 1
+            elif current_price < daily_opening_price:
+                print("Selling...")
+                exchange.create_market_sell_order(symbol, 1)  # Amount to sell is 1
+            break
+        
+        time.sleep(60)  # Check every minute
+
+if __name__ == "__main__":
+    main()
